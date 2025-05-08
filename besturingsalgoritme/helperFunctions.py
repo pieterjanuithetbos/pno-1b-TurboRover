@@ -345,9 +345,7 @@ def autoCalibrate():
 # -----------------------------------------------------------------------------
 #                              MOVEMENT FUNCTIONS
 # -----------------------------------------------------------------------------
-def driveLine(
-    min_left, max_left, min_right, max_right, min_rear, max_rear, pickup=False
-):
+def driveLine():
     """
     Drive along line until a crossroad is detected.
 
@@ -359,7 +357,6 @@ def driveLine(
     ldr_right_value = LDR_RIGHT.value
     ldr_rear_value = LDR_REAR.value
 
-    prev_ldr_rear_value = ldr_rear_value
     # Set motor direction
     RELAIS_LEFT.value = RELAIS_LEFT_DEFAULT
     RELAIS_RIGHT.value = RELAIS_RIGHT_DEFAULT
@@ -367,47 +364,28 @@ def driveLine(
     # Start motors
     MOTOR_LEFT.duty_cycle = int(SPEED * 65000)
     MOTOR_RIGHT.duty_cycle = int(SPEED * 65000)
-    ref = time.monotonic()
-    up = "start"
+
     while True:
         time.sleep(0.05)
 
-        if LEFT_SWITCH.value or RIGHT_SWITCH.value:
+        teller_links = 0
+        teller_rechts = 0
+        if FRONT_SWITCH.value or LEFT_SWITCH.value or RIGHT_SWITCH.value:
             return 1
-
-        if pickup and time.monotonic() - ref > 0.5 and up == "start":
-            # print("angle 0 ")
-            SERVO_MOTOR.angle = 0
-            up = "notDone"
-
-        if pickup and time.monotonic() - ref > 1.5 and up == "notDone":
-            # print("angle 160 ")
-            SERVO_MOTOR.angle = 180
-            up = "done"
-
-        prev_ldr_rear_value = ldr_rear_value
 
         ldr_left_value = LDR_LEFT.value
         ldr_right_value = LDR_RIGHT.value
         ldr_rear_value = LDR_REAR.value
 
         # Line following logic
-        if (
-            normalize(min_left, max_left, ldr_left_value)
-            - normalize(min_right, max_right, ldr_right_value)
-            < -0.40
-        ):
-            # print("links")
+        if normalizeLeft(ldr_left_value) - normalizeRight(ldr_right_value) < -0.40:
+            teller_rechts += 1
             # Line is to the right, adjust steering
             MOTOR_RIGHT.duty_cycle = int(SPEED * 65535 / 2)
             MOTOR_LEFT.duty_cycle = int(SPEED * 65535)
 
-        elif (
-            normalize(min_left, max_left, ldr_left_value)
-            - normalize(min_right, max_right, ldr_right_value)
-            > 0.40
-        ):
-            # print("rechts")
+        elif normalizeLeft(ldr_left_value) - normalizeRight(ldr_right_value) > 0.40:
+            teller_links += 1
             # Line is to the left, adjust steering
             MOTOR_LEFT.duty_cycle = int(SPEED * 65535 / 2)
             MOTOR_RIGHT.duty_cycle = int(SPEED * 65535)
@@ -418,21 +396,15 @@ def driveLine(
             MOTOR_RIGHT.duty_cycle = int(SPEED * 65535)
 
         # Detect crossroads by significant change in rear sensor
-        # print(normalizeRear(ldr_rear_value) - normalizeRear(prev_ldr_rear_value))
-        if (
-            normalize(min_rear, max_rear, ldr_rear_value)
-            - normalize(min_rear, max_rear, prev_ldr_rear_value)
-        ) > 0.25:
-            #    print("achter")
+        if (normalizeRear(ldr_rear_value) - normalizeRear(prev_ldr_rear_value)) > 0.25:
             break
 
-    SERVO_MOTOR.angle = 180
     MOTOR_LEFT.duty_cycle = 0
     MOTOR_RIGHT.duty_cycle = 0
+    print("naar links: %s naar rechts: %s verschil achter: %s" % (teller_links, teller_rechts, normalizeRear(ldr_rear_value) - normalizeRear(prev_ldr_rear_value))
     return 0
-
-
-def turnLeft(min_left, max_left, min_right, max_right, min_rear, max_rear):
+          
+def turnLeft():
     """
     Make a left turn at a crossroad
 
@@ -469,15 +441,13 @@ def turnLeft(min_left, max_left, min_right, max_right, min_rear, max_rear):
 
         # Check if the rover has turned enough
         if (
-            normalize(min_left, max_left, ldr_left_value)
-            - normalize(min_rear, max_rear, ldr_right_value)
-            > 0.8
+            normalizeLeft(ldr_left_value) - normalizeRight(ldr_right_value) > 0.8
             and time.monotonic() - ref > 0.5
         ):
             crossroad_found = True
 
         # Stop when the rover detects the line again
-        if crossroad_found and normalize(min_left, max_left, ldr_left_value) > 0.25:
+        if crossroad_found and normalizeLeft(ldr_left_value) > 0.25:
             MOTOR_LEFT.duty_cycle = 0
             MOTOR_RIGHT.duty_cycle = 0
             break
@@ -486,8 +456,7 @@ def turnLeft(min_left, max_left, min_right, max_right, min_rear, max_rear):
     MOTOR_RIGHT.duty_cycle = 0
     return 0
 
-
-def turnRight(min_left, max_left, min_right, max_right, min_rear, max_rear):
+def turnRight():
     """
     Make a right turn at a crossroad.
 
@@ -524,23 +493,36 @@ def turnRight(min_left, max_left, min_right, max_right, min_rear, max_rear):
 
         # Check if the rover has turned enough
         if (
-            normalize(min_left, max_left, ldr_left_value)
-            - normalize(min_right, max_right, ldr_right_value)
-            < -0.8
+            normalizeLeft(ldr_left_value) - normalizeRight(ldr_right_value) < -0.8
             and time.monotonic() - ref > 0.5
         ):
             crossroad_found = True
             break
 
         # Stop when the rover detects the line again
-        if crossroad_found and normalize(min_right, max_right, ldr_right_value) > 0.25:
+        if crossroad_found and normalizeRight(ldr_right_value) > 0.25:
             MOTOR_LEFT.duty_cycle = 0
             MOTOR_RIGHT.duty_cycle = 0
             break
 
     MOTOR_LEFT.duty_cycle = 0
     MOTOR_RIGHT.duty_cycle = 0
+    print("links - rechts", normalizeLeft(ldr_left_value) - normalizeRight(ldr_right_value))
     return 0
+
+# test draaien
+driveLine()
+start = time.perf_counter()
+turnRight()
+stop = time.perf_counter()
+print("Tijd: ", stop - start)
+
+
+# test rechtdoor rijden
+driveLine()
+driveLine()
+print("stop")
+
 
 
 def pickUpTower(slp):
