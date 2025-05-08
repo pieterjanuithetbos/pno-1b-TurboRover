@@ -9,8 +9,8 @@ from adafruit_motor import servo
 # ------------------------------------------------------------------------------
 #                           CONFIGURATION CONSTANTS
 # ------------------------------------------------------------------------------
-SPEED = 0.4
-TURN_SPEED = 0.28
+SPEED = 0.35
+TURN_SPEED = 0.35
 
 # ------------------------------------------------------------------------------
 #                           HARDWARE INITIALIZATION
@@ -187,6 +187,7 @@ def driveLine():
     MOTOR_LEFT.duty_cycle = int(SPEED * 65000)
     MOTOR_RIGHT.duty_cycle = int(SPEED * 65000)
 
+    x = 0
     while True:
         statusLed("default")
         time.sleep(0.05)
@@ -207,7 +208,16 @@ def driveLine():
             # Line is to the left, adjust steering
             MOTOR_LEFT.duty_cycle = int(SPEED * 65535 / 2)
             MOTOR_RIGHT.duty_cycle = int(SPEED * 65535)
-
+        
+        # voorste LDR's lezen beide zwarte lijn
+        if (
+            normalize(min_left, max_left, ldr_left_value) > 0.5
+            and normalize(min_right, max_right, ldr_right_value) > 0.5
+        ):
+            x += 0.05
+            MOTOR_LEFT.duty_cycle = int((1 - 0.4 * x) * SPEED * 65535)
+            MOTOR_RIGHT.duty_cycle = int((1 - 0.4 * x) * SPEED * 65535)
+        
         else:
             # Line is centered, go straight
             MOTOR_LEFT.duty_cycle = int(SPEED * 65535)
@@ -260,7 +270,10 @@ def turnLeft():
             and time.monotonic() - ref > 0.5
         ):
             crossroad_found = True
-
+        if crossroad_found:
+            MOTOR_LEFT.duty_cycle = int(0.5 * TURN_SPEED * 65535)
+            MOTOR_RIGHT.duty_cycle = int(0.5 * TURN_SPEED * 65535)
+            
         # Stop when the rover detects the line again
         if crossroad_found and normalizeLeft(ldr_left_value) > 0.25:
             MOTOR_LEFT.duty_cycle = 0
